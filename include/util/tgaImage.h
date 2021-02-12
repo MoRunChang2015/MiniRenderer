@@ -2,6 +2,7 @@
 #define __IMAGE_H__
 
 #include <fstream>
+#include "geometry.h"
 
 #pragma pack(push, 1)
 struct TGA_Header {
@@ -51,6 +52,11 @@ struct TGAColor {
         }
         return *this;
     }
+
+    TGAColor operator*(const Vec3f &other) {
+        return {static_cast<unsigned char>(r * other.x), static_cast<unsigned char>(g * other.y),
+                static_cast<unsigned char>(b * other.z), a};
+    }
 };
 
 class TGAImage {
@@ -74,13 +80,13 @@ class TGAImage {
     bool flip_horizontally();
     bool flip_vertically();
     bool scale(int w, int h);
-    TGAColor get(int x, int y);
-    bool set(int x, int y, const TGAColor& c);
+    TGAColor get(int x, int y) const;
+    bool set(int x, int y, const TGAColor &c);
     ~TGAImage();
     TGAImage &operator=(const TGAImage &img);
-    int get_width();
-    int get_height();
-    int get_bytespp();
+    int get_width() const;
+    int get_height() const;
+    int get_bytespp() const;
     unsigned char *buffer();
     void clear();
 };

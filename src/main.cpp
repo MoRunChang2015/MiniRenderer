@@ -6,6 +6,8 @@
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
 const TGAColor green = TGAColor(0, 255, 0, 255);
+constexpr int width = 800;
+constexpr int height = 800;
 
 void line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color) {
     bool steep = false;
@@ -37,70 +39,90 @@ void line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color
     }
 }
 
-Vec3f barycentric(Vec2i a, Vec2i b, Vec2i c, Vec2i p) {
-    const Vec3i v0(b.x - a.x, c.x - a.x, a.x - p.x);
-    const Vec3i v1(b.y - a.y, c.y - a.y, a.y - p.y);
-    const Vec3i ans = v0 ^ v1;
-    if (ans.z == 0) return {-1.f, -1.f, 1.f};
-    return {1.0f - static_cast<float>(ans.x + ans.y) / static_cast<float>(ans.z), ans.x / static_cast<float>(ans.z),
-            ans.y / static_cast<float>(ans.z)};
+Vec3f barycentric(Vec3f a, Vec3f b, Vec3f c, Vec3f p) {
+    const Vec3f v0(b.x - a.x, c.x - a.x, a.x - p.x);
+    const Vec3f v1(b.y - a.y, c.y - a.y, a.y - p.y);
+    const Vec3f ans = v0 ^ v1;
+    if (std::abs(ans.z) < 1e-2) return {-1.f, -1.f, 1.f};
+    return {1.0f - (ans.x + ans.y) / ans.z, ans.x / ans.z, ans.y / ans.z};
 }
 
-void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, const TGAColor& color) {
-    Vec2i min{image.get_width() - 1, image.get_height() - 1};
-    Vec2i max{0, 0};
-    const Vec2i clamp = min;
+Vec3f worldToScreen(const Vec3f& v) {
+    return Vec3f(static_cast<int>((v.x + 1.0f) * width / 2.0f + 0.5f), static_cast<int>((v.y + 1.0f) * height / 2.0f + 0.5f),
+            v.z);
+}
 
-    min = {std::max(0, std::min(min.x, t0.x)), std::max(0, std::min(min.y, t0.y))};
-    min = {std::max(0, std::min(min.x, t1.x)), std::max(0, std::min(min.y, t1.y))};
-    min = {std::max(0, std::min(min.x, t2.x)), std::max(0, std::min(min.y, t2.y))};
+void triangle(Vec3f pts[], Vec3f uvs[], float zbuffer[], const TGAImage& diffuse, TGAImage& output,
+              const Vec3f& lightInentsity) {
+    Vec2f min{static_cast<float>(output.get_width() - 1), static_cast<float>(output.get_height() - 1)};
+    Vec2f max{0, 0};
+    const Vec2f clamp = min;
 
-    max = {std::min(clamp.x, std::max(max.x, t0.x)), std::min(clamp.y, std::max(max.y, t0.y))};
-    max = {std::min(clamp.x, std::max(max.x, t1.x)), std::min(clamp.y, std::max(max.y, t1.y))};
-    max = {std::min(clamp.x, std::max(max.x, t2.x)), std::min(clamp.y, std::max(max.y, t2.y))};
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 2; j++) {
+            min[j] = std::max(0.f, std::min(min[j], pts[i][j]));
+            max[j] = std::min(clamp[j], std::max(max[j], pts[i][j]));
+        }
+    }
 
-    Vec2i p;
+    Vec3f p;
     for (p.x = min.x; p.x <= max.x; ++p.x)
         for (p.y = min.y; p.y <= max.y; ++p.y) {
-            const Vec3f ans = barycentric(t0, t1, t2, p);
+            const Vec3f ans = barycentric(pts[0], pts[1], pts[2], p);
             if (ans.x < 0 || ans.y < 0 || ans.z < 0) continue;
-            image.set(p.x, p.y, color);
+            p.z = ans.x * pts[0].z + ans.y * pts[1].z + ans.z * pts[2].z;
+            if (zbuffer[static_cast<int>(p.x + p.y * width)] < p.z) {
+                zbuffer[static_cast<int>(p.x + p.y * width)] = p.z;
+
+                Vec2f uv = {0.f, 0.f};
+                for (int i = 0; i < 3; ++i)
+                    for (int j = 0; j < 2; ++j) uv[j] += ans[i] * uvs[i][j];
+                output.set(static_cast<int>(p.x), static_cast<int>(p.y),
+                           diffuse.get(uv.u * diffuse.get_width(), uv.v * diffuse.get_height()) * lightInentsity);
+            }
         }
 }
 
 int main(int argc, char** argv) {
     Model* model;
-    const int width = 800;
-    const int height = 800;
-    if (argc == 2) {
+    TGAImage diffuse;
+    if (argc == 3) {
         model = new Model(argv[1]);
+        diffuse.read_tga_file(argv[2]);
     } else {
         model = new Model("../resource/african_head.obj");
+        diffuse.read_tga_file("../resource/african_head_diffuse.tga");
     }
     TGAImage image(width, height, TGAImage::RGB);
+    diffuse.flip_vertically();
+
+    float* zbuffer = new float[width * height + 1];
+    for (int i = 0; i < width * height; ++i) zbuffer[i] = -std::numeric_limits<float>::max();
 
     const Vec3f light_dir{0.f, 0.f, -1.0f};
 
     for (int i = 0; i < model->nfaces(); ++i) {
-        const std::vector<int>& face = model->face(i);
-        std::vector<Vec2i> face_vec2{};
-        std::vector<Vec3f> face_vec3f{};
+        const std::vector<Model::Vertex>& face = model->face(i);
+        std::vector<Vec3f> face_world{};
+        std::vector<Vec3f> face_vert{};
+        std::vector<Vec3f> face_uv{};
         for (int j = 0; j < 3; ++j) {
-            const Vec3f& v0 = model->vert(face[j]);
-            face_vec3f.emplace_back(v0);
-            face_vec2.emplace_back(static_cast<int>((v0.x + 1.0) * width / 2.0),
-                                   static_cast<int>((v0.y + 1.0) * height / 2.0));
+            const Vec3f v = model->vert(face[j].vertIdx());
+            face_vert.emplace_back(worldToScreen(v));
+            face_world.emplace_back(v);
+            face_uv.emplace_back(model->uv(face[j].uvIdx()));
         }
-        Vec3f n = (face_vec3f[2] - face_vec3f[0]) ^ (face_vec3f[1] - face_vec3f[0]);
+        Vec3f n = (face_world[2] - face_world[0]) ^ (face_world[1] - face_world[0]);
         n.noramlize();
         const float& intensity = light_dir * n;
         if (intensity > 0) {
-            triangle(face_vec2[0], face_vec2[1], face_vec2[2], image,
-                     TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
+            triangle(face_vert.data(), face_uv.data(), zbuffer, diffuse, image, {intensity, intensity, intensity});
         }
     }
 
     image.flip_vertically();  // i want to have the origin at the left bottom corner of the image
     image.write_tga_file("output.tga");
+    delete model;
+    delete[] zbuffer;
     return 0;
 }
