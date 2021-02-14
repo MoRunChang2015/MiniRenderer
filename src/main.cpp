@@ -8,6 +8,7 @@ const TGAColor red = TGAColor(255, 0, 0, 255);
 const TGAColor green = TGAColor(0, 255, 0, 255);
 constexpr int width = 800;
 constexpr int height = 800;
+constexpr int depth = 255;
 
 void line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color) {
     bool steep = false;
@@ -47,11 +48,6 @@ Vec3f barycentric(Vec3f a, Vec3f b, Vec3f c, Vec3f p) {
     return {1.0f - (ans.x + ans.y) / ans.z, ans.x / ans.z, ans.y / ans.z};
 }
 
-Vec3f worldToScreen(const Vec3f& v) {
-    return Vec3f(static_cast<int>((v.x + 1.0f) * width / 2.0f + 0.5f), static_cast<int>((v.y + 1.0f) * height / 2.0f + 0.5f),
-            v.z);
-}
-
 void triangle(Vec3f pts[], Vec3f uvs[], float zbuffer[], const TGAImage& diffuse, TGAImage& output,
               const Vec3f& lightInentsity) {
     Vec2f min{static_cast<float>(output.get_width() - 1), static_cast<float>(output.get_height() - 1)};
@@ -83,6 +79,46 @@ void triangle(Vec3f pts[], Vec3f uvs[], float zbuffer[], const TGAImage& diffuse
         }
 }
 
+Vec3f homogeneousToVector(const Matrix& m) { return {m[0][0] / m[3][0], m[1][0] / m[3][0], m[2][0] / m[3][0]}; }
+Matrix vectorToHomogeneous(const Vec3f& v) {
+    Matrix m(4, 1);
+    m[0][0] = v.x;
+    m[1][0] = v.y;
+    m[2][0] = v.z;
+    m[3][0] = 1;
+    return m;
+}
+
+Matrix viewport(const int& x, const int& y, const int& w, const int& h) {
+    Matrix m = Matrix::identity(4);
+    m[0][3] = x + w / 2.f;
+    m[1][3] = y + h / 2.f;
+    m[2][3] = depth / 2.f;
+
+    m[0][0] = w / 2.f;
+    m[1][1] = h / 2.f;
+    m[2][2] = depth / 2.f;
+    return m;
+}
+
+Matrix lookat(const Vec3f& eye, const Vec3f& center, const Vec3f& up) {
+    Vec3f z = (eye - center).normalize();
+    Vec3f x = (up ^ z).normalize();
+    Vec3f y = (z ^ x).normalize();
+    Matrix res = Matrix::identity(4);
+    for (int i = 0; i < 3; i++) {
+        res[0][i] = x[i];
+        res[1][i] = y[i];
+        res[2][i] = z[i];
+        res[i][3] = -center[i];
+    }
+    return res;
+}
+
+inline Vec3f worldToScreen(const Matrix& vp, const Vec3f& v) {
+    return (homogeneousToVector(vp * vectorToHomogeneous(v))).round();
+}
+
 int main(int argc, char** argv) {
     Model* model;
     TGAImage diffuse;
@@ -100,6 +136,15 @@ int main(int argc, char** argv) {
     for (int i = 0; i < width * height; ++i) zbuffer[i] = -std::numeric_limits<float>::max();
 
     const Vec3f light_dir{0.f, 0.f, -1.0f};
+    const Vec3f eye_pos{0.f, 0.f, 3.f};
+    const Vec3f center{0.f, 0.f, 0.f};
+
+    Matrix modelView = lookat(eye_pos, center, {0.f, 1.f, 0.f});
+    Matrix projection = Matrix::identity(4);
+    Matrix v = viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
+    projection[3][2] = -1.0f / (eye_pos - center).norm();
+
+    const Matrix vp = v * projection * modelView;
 
     for (int i = 0; i < model->nfaces(); ++i) {
         const std::vector<Model::Vertex>& face = model->face(i);
@@ -108,12 +153,12 @@ int main(int argc, char** argv) {
         std::vector<Vec3f> face_uv{};
         for (int j = 0; j < 3; ++j) {
             const Vec3f v = model->vert(face[j].vertIdx());
-            face_vert.emplace_back(worldToScreen(v));
+            face_vert.emplace_back(worldToScreen(vp, v));
             face_world.emplace_back(v);
             face_uv.emplace_back(model->uv(face[j].uvIdx()));
         }
         Vec3f n = (face_world[2] - face_world[0]) ^ (face_world[1] - face_world[0]);
-        n.noramlize();
+        n.normalize();
         const float& intensity = light_dir * n;
         if (intensity > 0) {
             triangle(face_vert.data(), face_uv.data(), zbuffer, diffuse, image, {intensity, intensity, intensity});

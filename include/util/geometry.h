@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 template <typename T>
 struct Vector2 {
@@ -58,10 +59,12 @@ struct Vector3 {
     }
 
     float norm() const { return std::sqrt(x * x + y * y + z * z); }
-    Vector3<T>& noramlize(T l = 1) {
+    Vector3<T>& normalize(T l = 1) {
         *this = (*this) * (1 / norm());
         return *this;
     }
+
+    Vector3<T> round() const { return Vector3<T>(std::round(x), std::round(y), std::round(z)); }
 
     template <typename>
     friend std::ostream& operator<<(std::ostream& s, Vector2<T>& v);
@@ -83,3 +86,25 @@ using Vec2f = Vector2<float>;
 using Vec2i = Vector2<int>;
 using Vec3f = Vector3<float>;
 using Vec3i = Vector3<int>;
+
+class Matrix {
+   public:
+    Matrix(const int& n_rows, const int& n_cols);
+    ~Matrix() = default;
+    inline int nrows() const { return rows; }
+    inline int ncols() const { return cols; }
+    Matrix operator*(const Matrix& other) const;
+    std::vector<float>& operator[](const int& idx) { return raws[idx]; }
+    const std::vector<float>& operator[](const int& idx) const { return raws[idx]; };
+    Matrix transpose() const;
+    Matrix inverse() const;
+
+    static Matrix identity(const int& dim);
+
+   private:
+    std::vector<std::vector<float>> raws;
+    int rows;
+    int cols;
+};
+
+std::ostream& operator<<(std::ostream& s, Matrix& m);
