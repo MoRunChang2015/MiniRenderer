@@ -58,6 +58,11 @@ struct TGAColor {
                 static_cast<unsigned char>(b * other.z), a};
     }
 
+    TGAColor operator*(const float &other) {
+        return {static_cast<unsigned char>(r * other), static_cast<unsigned char>(g * other),
+                static_cast<unsigned char>(b * other), static_cast<unsigned char>(a * other)};
+    }
+
     unsigned char &operator[](const size_t &idx) { return raw[idx]; }
     const unsigned char &operator[](const size_t &idx) const { return raw[idx]; }
 };

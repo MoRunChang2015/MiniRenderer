@@ -4,6 +4,8 @@
 #include <iostream>
 #include <vector>
 
+
+
 template <size_t row, size_t col, typename T>
 class Matrix;
 
@@ -46,6 +48,12 @@ struct Vector<2, T> {
     const T& operator[](const size_t& i) const {
         assert(i < 2);
         return i == 0 ? x : y;
+    }
+
+    float norm() { return std::sqrt(x * x + y * y); }
+    Vector<3, T>& normalize(T l = 1) {
+        *this = (*this) * (l / norm());
+        return *this;
     }
 };
 

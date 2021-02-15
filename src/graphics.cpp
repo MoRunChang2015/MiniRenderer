@@ -46,7 +46,8 @@ void triangle(const Vec4f inPts[], const IShader& shader, TGAImage& output, floa
     const Vec2f clamp = min;
     Vec4f pts[4];
     for (int i = 0; i < 3; ++i) {
-        pts[i] = (inPts[i] / inPts[i][3]).round();
+        pts[i] = Viewport * inPts[i];
+        pts[i] = (pts[i] / pts[i][3]).round();
         for (int j = 0; j < 2; ++j) {
             min[j] = std::max(0.f, std::min(min[j], pts[i][j]));
             max[j] = std::min(clamp[j], std::max(max[j], pts[i][j]));
@@ -56,16 +57,13 @@ void triangle(const Vec4f inPts[], const IShader& shader, TGAImage& output, floa
     Vec2i p;
     for (p.x = static_cast<int>(min.x); p.x <= max.x; ++p.x)
         for (p.y = static_cast<int>(min.y); p.y <= max.y; ++p.y) {
-            const Vec3f ans = barycentric(projection<3>(pts[0] / pts[0][3]), projection<3>(pts[1] / pts[0][3]),
-                                          projection<3>(pts[2] / pts[0][3]), p);
-            if (ans.x < 0 || ans.y < 0 || ans.z < 0) continue;
-            const float z = ans.x * pts[0][2] + ans.y * pts[1][2] + ans.z * pts[2][2];
-            const float w = ans.x * pts[0][3] + ans.y * pts[1][3] + ans.z * pts[2][3];
-            float d = z / w;
-            if (zbuffer[static_cast<int>(p.x + p.y * output.get_width())] < d) {
+            const Vec3f bc_screen = barycentric(projection<3>(pts[0]), projection<3>(pts[1]), projection<3>(pts[2]), p);
+            if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
+            const float z = bc_screen.x * pts[0][2] + bc_screen.y * pts[1][2] + bc_screen.z * pts[2][2];
+            if (zbuffer[static_cast<int>(p.x + p.y * output.get_width())] < z) {
                 TGAColor c;
-                if (!shader.fragment(ans, c)) {
-                    zbuffer[static_cast<int>(p.x + p.y * output.get_width())] = d;
+                if (!shader.fragment(Vec3f(p.x, p.y, z), bc_screen, c)) {
+                    zbuffer[static_cast<int>(p.x + p.y * output.get_width())] = z;
                     output.set(p.x, p.y, c);
                 }
             }
