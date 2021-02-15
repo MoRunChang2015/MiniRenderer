@@ -2,36 +2,22 @@
 
 #include <vector>
 
+#include "resource/material.h"
+#include "resource/mesh.h"
 #include "util/geometry.h"
 
 class Model {
    public:
-    Model(const std::string& filename);
-    ~Model();
+    Model(Mesh* mesh, Material* material) : meshRes(mesh), materialRes(material), transform(Matrix4x4::identity()){};
 
-    struct Vertex {
-        int raw[3];
+    Mesh* getMesh() const { return meshRes; }
+    Material* getMaterial() const { return materialRes; }
 
-        Vertex(int vIdx, int uvIdx, int nIdx) : raw{vIdx, uvIdx, nIdx} {}
-        int vertIdx() const { return raw[0]; }
-        int uvIdx() const { return raw[1]; }
-        int normalIdx() const { return raw[2]; }
-    };
-
-    int nverts() const;
-    int nfaces() const;
-
-    Vec3f vert(const int& idx) const;
-    Vec3f normal(const int& idx) const;
-    Vec3f uv(const int& idx) const;
-    std::vector<int> face_vertex(const int& idx) const;
-    std::vector<int> face_uv(const int& idx) const;
-    std::vector<int> face_normal(const int& idx) const;
-    const std::vector<Vertex>& face(const int& idx) const;
+    const Matrix4x4& getTransform() { return transform; }
+    void setTransform(const Matrix4x4& m) { transform = m; }
 
    private:
-    std::vector<Vec3f> verts;
-    std::vector<Vec3f> uvs;
-    std::vector<Vec3f> normals;
-    std::vector<std::vector<Vertex>> faces;
+    Mesh* meshRes{nullptr};
+    Material* materialRes{nullptr};
+    Matrix4x4 transform;
 };

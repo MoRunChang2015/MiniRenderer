@@ -57,6 +57,9 @@ struct TGAColor {
         return {static_cast<unsigned char>(r * other.x), static_cast<unsigned char>(g * other.y),
                 static_cast<unsigned char>(b * other.z), a};
     }
+
+    unsigned char &operator[](const size_t &idx) { return raw[idx]; }
+    const unsigned char &operator[](const size_t &idx) const { return raw[idx]; }
 };
 
 class TGAImage {
