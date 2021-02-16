@@ -6,11 +6,9 @@
 #include "resource/model.h"
 #include "util/tgaImage.h"
 
-constexpr int width = 1024;
-constexpr int height = 1024;
-Model* model = nullptr;
-Material* material = nullptr;
-Mesh* mesh = nullptr;
+constexpr int width = 2048;
+constexpr int height = 2048;
+const Model* model = nullptr;  // current rendering model
 float* zbuffer = nullptr;
 float* shadowMap = nullptr;
 Vec3f light_dir{1.f, 1.f, 1.0f};
@@ -79,7 +77,7 @@ struct Shader : IShader {
         Vec4f sm_p = uniform_shadow * embed<4>(viewCoord);
         sm_p = sm_p / sm_p[3];
         const int shadowPos = static_cast<int>(sm_p[0] + 0.5) + static_cast<int>(sm_p[1] + 0.5) * width;
-        const float shadow = 0.3f + 0.7f * (shadowMap[shadowPos] < sm_p[2] + 35.53);  // magic coeff to avoid z-fighting
+        const float shadow = 0.3f + 0.7f * (shadowMap[shadowPos] < sm_p[2] + 12.21f);  // magic coeff to avoid z-fighting
 
         const Vec3f r = n * (uniform_light_dir * n) * 2 - uniform_light_dir;
         const float spec = std::pow(std::max(r.z, 0.f), model->getMaterial()->specular(uv));
@@ -107,20 +105,23 @@ float max_elevation_angle(float* zbuffer, Vec2f p, Vec2f dir) {
 }
 
 int main(int argc, char** argv) {
-    if (argc == 3) {
-        mesh = new Mesh(argv[0]);
-        material = new Material(argv[1]);
-    } else {
-        std::string filename = "../resource/african_head/african_head.obj";
-        mesh = new Mesh(filename);
-        size_t dot = filename.find_last_of(".");
-        if (dot != std::string::npos) {
-            filename = filename.substr(0, dot);
-            material = new Material(filename + "_diffuse.tga", filename + "_nm_tangent.tga", filename + "_spec.tga");
-        }
+    std::vector<std::string> modelsFilename{
+        {"../resource/boggie/body"},
+        {"../resource/boggie/eyes"},
+        {"../resource/boggie/head"},
+    };
+    std::vector<Mesh> meshs;
+    std::vector<Material> materials;
+    std::vector<Model> models;
+    meshs.reserve(modelsFilename.size());
+    materials.reserve(modelsFilename.size());
+    models.reserve(modelsFilename.size());
+    for (const std::string& filename : modelsFilename) {
+        meshs.emplace_back(filename + ".obj");
+        materials.emplace_back(filename + "_diffuse.tga", filename + "_nm_tangent.tga", filename + "_spec.tga");
+        models.emplace_back(&meshs.back(), &materials.back());
     }
-    if (material == nullptr) return 0;
-    model = new Model(mesh, material);
+
     light_dir.norm();
 
     zbuffer = new float[width * height + 1];
@@ -135,14 +136,17 @@ int main(int argc, char** argv) {
         lookat(light_dir, center, up);
         viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
         projection(0);
-        Matrix4x4 ModelView = View * model->getTransform();
-        DepthShader depthShader(ModelView);
-        Vec4f screen_coord[3];
-        for (size_t i = 0; i < model->getMesh()->nfaces(); ++i) {
-            for (size_t j = 0; j < 3; ++j) {
-                screen_coord[j] = depthShader.vertex(i, j);
+        for (const Model& m : models) {
+            model = &m;
+            Matrix4x4 ModelView = View * model->getTransform();
+            DepthShader depthShader(ModelView);
+            Vec4f screen_coord[3];
+            for (size_t i = 0; i < model->getMesh()->nfaces(); ++i) {
+                for (size_t j = 0; j < 3; ++j) {
+                    screen_coord[j] = depthShader.vertex(i, j);
+                }
+                triangle(screen_coord, depthShader, depthOutput, shadowMap);
             }
-            triangle(screen_coord, depthShader, depthOutput, shadowMap);
         }
         depthOutput.flip_vertically();
         depthOutput.write_tga_file("depthOutput.tga");
@@ -155,22 +159,25 @@ int main(int argc, char** argv) {
     lookat(eye_pos, center, up);
     viewport(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
     projection(-1.f / (eye_pos - center).norm());
-    Matrix4x4 ModelView = View * model->getTransform();
-    Shader shader(Projection * ModelView,
-                  shadowMapM * model->getTransform() * (Viewport * Projection * ModelView).invert());
-    Vec4f screen_coord[3];
-    for (size_t i = 0; i < model->getMesh()->nfaces(); ++i) {
-        for (size_t j = 0; j < 3; ++j) {
-            screen_coord[j] = shader.vertex(i, j);
+    for (const Model& m : models) {
+        model = &m;
+        Matrix4x4 ModelView = View * model->getTransform();
+        Shader shader(Projection * ModelView,
+                      shadowMapM * model->getTransform() * (Viewport * Projection * ModelView).invert());
+        Vec4f screen_coord[3];
+        for (size_t i = 0; i < model->getMesh()->nfaces(); ++i) {
+            for (size_t j = 0; j < 3; ++j) {
+                screen_coord[j] = shader.vertex(i, j);
+            }
+            triangle(screen_coord, shader, output, zbuffer);
         }
-        triangle(screen_coord, shader, output, zbuffer);
     }
     output.flip_vertically();
     output.write_tga_file("output.tga");
 
     // Post process
     // SSAO
-    //for (int x = 0; x < width; x++) {
+    // for (int x = 0; x < width; x++) {
     //    for (int y = 0; y < height; y++) {
     //        if (zbuffer[x + y * width] < -1e5) continue;
     //        float total = 0;
@@ -184,10 +191,6 @@ int main(int argc, char** argv) {
     //                            static_cast<unsigned char>(total * 255), 255));
     //    }
     //}
-
-    delete model;
-    delete material;
-    delete mesh;
     delete[] zbuffer;
     delete[] shadowMap;
     return 0;

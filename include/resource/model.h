@@ -13,7 +13,7 @@ class Model {
     Mesh* getMesh() const { return meshRes; }
     Material* getMaterial() const { return materialRes; }
 
-    const Matrix4x4& getTransform() { return transform; }
+    const Matrix4x4& getTransform() const { return transform; }
     void setTransform(const Matrix4x4& m) { transform = m; }
 
    private:

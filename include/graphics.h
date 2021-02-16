@@ -7,7 +7,7 @@ extern Matrix4x4 View;
 extern Matrix4x4 Viewport;
 extern Matrix4x4 Projection;
 const float depth = 2000.f;
-constexpr float PI = 3.14159265358979323846;
+constexpr float PI = 3.14159265358979323846f;
 
 void viewport(int x, int y, int w, int h);
 void projection(float coeff = 0.f); // coeff = -1/c
