@@ -34,7 +34,7 @@ Build with Visual Studio
 ![boogie.PNG](./images/boogie.PNG)
 
 
-+ Boogie ShadowMap
++ Boogie ShadowMap-Depth
 
 ![boogieDepth.PNG](./images/boogieDepth.PNG)
 
