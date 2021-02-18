@@ -11,7 +11,7 @@ constexpr int height = 2048;
 const Model* model = nullptr;  // current rendering model
 float* zbuffer = nullptr;
 float* shadowMap = nullptr;
-Vec3f light_dir{1.f, 1.f, 1.0f};
+Vec3f light_dir{1.f, 1.f, 1.5f};
 const Vec3f eye_pos{1.f, 1.0f, 4.f};
 const Vec3f center{0.f, 0.f, 0.f};
 const Vec3f up{0.f, 1.f, 0.f};
@@ -77,7 +77,7 @@ struct Shader : IShader {
         Vec4f sm_p = uniform_shadow * embed<4>(viewCoord);
         sm_p = sm_p / sm_p[3];
         const int shadowPos = static_cast<int>(sm_p[0] + 0.5) + static_cast<int>(sm_p[1] + 0.5) * width;
-        const float shadow = 0.3f + 0.7f * (shadowMap[shadowPos] < sm_p[2] + 12.21f);  // magic coeff to avoid z-fighting
+        const float shadow = 0.3f + 0.7f * (shadowMap[shadowPos] < sm_p[2] + 8.1f);  // magic coeff to avoid z-fighting
 
         const Vec3f r = n * (uniform_light_dir * n) * 2 - uniform_light_dir;
         const float spec = std::pow(std::max(r.z, 0.f), model->getMaterial()->specular(uv));
