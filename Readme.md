@@ -13,16 +13,17 @@ Build with Visual Studio
 ## Feature 
 
 + Shader based √
++ Tangent space normal mapping √
++ Shadow mapping √
++ Depth testing √
++ ~~Screen space ambient occlusion (SSAO) √ too slow~~
 + Homogeneous clipping
 + Back-face culling
 + Perspective correct interpolation
-+ Depth testing √
 + Alpha testing
 + Alpha blending
 + Cubemapped skybox
 + Skeletal animation
-+ Tangent space normal mapping √
-+ Shadow mapping √
 + ACES tone mapping
 + Physically based rendering (PBR)
 + Image-based lighting (IBL)
